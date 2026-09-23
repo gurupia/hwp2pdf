@@ -221,15 +221,19 @@ namespace hwp2pdf
             this.list_ext_option.HideSelection = false;
             this.list_ext_option.Location = new System.Drawing.Point(13, 204);
             this.list_ext_option.Name = "list_ext_option";
-            this.list_ext_option.Size = new System.Drawing.Size(469, 86);
+            this.list_ext_option.Size = new System.Drawing.Size(469, 120);
             this.list_ext_option.TabIndex = 6;
             this.list_ext_option.UseCompatibleStateImageBehavior = false;
-            this.list_ext_option.View = System.Windows.Forms.View.SmallIcon;
+            // Use Tile view to show multiple columns of checkable extensions more compactly
+            this.list_ext_option.View = System.Windows.Forms.View.Tile;
+            this.list_ext_option.TileSize = new System.Drawing.Size(140, 30);
+            this.list_ext_option.MultiSelect = false;
+            this.list_ext_option.Scrollable = true;
             // 
             // textBoxNewExt
             // 
             this.textBoxNewExt.Font = new System.Drawing.Font("맑은 고딕", 12F);
-            this.textBoxNewExt.Location = new System.Drawing.Point(13, 296);
+            this.textBoxNewExt.Location = new System.Drawing.Point(13, 334);
             this.textBoxNewExt.Name = "textBoxNewExt";
             this.textBoxNewExt.Size = new System.Drawing.Size(300, 29);
             this.textBoxNewExt.TabIndex = 8;
@@ -237,7 +241,7 @@ namespace hwp2pdf
             // btnAddExt
             // 
             this.btnAddExt.Font = new System.Drawing.Font("맑은 고딕", 12F);
-            this.btnAddExt.Location = new System.Drawing.Point(320, 294);
+            this.btnAddExt.Location = new System.Drawing.Point(320, 332);
             this.btnAddExt.Name = "btnAddExt";
             this.btnAddExt.Size = new System.Drawing.Size(75, 32);
             this.btnAddExt.TabIndex = 9;
@@ -248,7 +252,7 @@ namespace hwp2pdf
             // btnRemoveExt
             // 
             this.btnRemoveExt.Font = new System.Drawing.Font("맑은 고딕", 12F);
-            this.btnRemoveExt.Location = new System.Drawing.Point(401, 294);
+            this.btnRemoveExt.Location = new System.Drawing.Point(401, 332);
             this.btnRemoveExt.Name = "btnRemoveExt";
             this.btnRemoveExt.Size = new System.Drawing.Size(81, 32);
             this.btnRemoveExt.TabIndex = 10;
