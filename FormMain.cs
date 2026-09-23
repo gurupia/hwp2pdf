@@ -24,7 +24,7 @@ namespace hwp2pdf
         // Source 확장자 저장: CSV 형식으로 INI에 저장됨. 런타임에서는 HashSet으로 관리
         string option_source_ext_csv = "";
         HashSet<string> option_source_ext_set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        bool option_PDF_print = false; //true 면 가상인쇄 방식 사용
+        bool option_PDF_print = false; //true 면 가virt인쇄 방식 사용
         HwpObject hwp_object = null; //한컴 오토메이션을 위한 기본 인터페이스
         bool filecheckdll_ok = false;
         HwpWorker hwpWorker = null;
@@ -375,7 +375,7 @@ namespace hwp2pdf
                 list_file.Enabled = bEnable;
                 btnSavePath.Enabled = bEnable;
                 btn_clear.Enabled = bEnable;
-                btn_close.Enabled = bEnable;
+                btn_close.Enabled = true;
                 btn_convert.Enabled = true;
                 if (bEnable)    btn_convert.Text = "변환 시작";
                 else            btn_convert.Text = "변환 중단";
@@ -759,7 +759,31 @@ namespace hwp2pdf
         }
         private void btn_close_Click(object sender, EventArgs e)
         {
-            Close();
+            if (st_bConverting)
+            {
+                var dr = MessageBox.Show("변환이 진행중입니다. 작업을 중단하고 종료하시겠습니까?", "종료 확인", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (dr != DialogResult.Yes) return;
+                // request cancel
+                st_bConverting = false;
+                add_log("변환 중단 요청... 종료를 기다립니다.");
+                // attempt to stop worker gracefully
+                try
+                {
+                    if (hwpWorker != null)
+                    {
+                        hwpWorker.Dispose();
+                        hwpWorker = null;
+                    }
+                }
+                catch { }
+                // allow some time for background threads to finish
+                Thread.Sleep(200);
+                Close();
+            }
+            else
+            {
+                Close();
+            }
         }
         private void list_menu_exit_Click(object sender, EventArgs e)
         {
