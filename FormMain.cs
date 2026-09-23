@@ -28,6 +28,8 @@ namespace hwp2pdf
         HwpObject hwp_object = null; //한컴 오토메이션을 위한 기본 인터페이스
         bool filecheckdll_ok = false;
         HwpWorker hwpWorker = null;
+        // timeout for COM calls (ms)
+        const int HWP_INVOKE_TIMEOUT_MS = 120000; // 2 minutes
         //쓰레드에서 사용할 변수들
         static int st_convert_target_index = 0;
         //static string[] target_type_array = new string[] { "PDF", "HWP", "HWPX", "HWPML2X", "HTML+", "ODT", "OOXML", "MSWORD", "UNICODE", "RTF" };
@@ -401,135 +403,192 @@ namespace hwp2pdf
             foreach (string file_path in paths)
             {
                 if (filecheckdll_ok == true)
-                    hwpWorker.Invoke(h => { h.SetMessageBoxMode(0x00211411); return (object)null; }); //HwpCtrl API 문서에 있음
+                {
+                    try
+                    {
+                        hwpWorker.Invoke(h => { h.SetMessageBoxMode(0x00211411); return (object)null; }, HWP_INVOKE_TIMEOUT_MS); //HwpCtrl API 문서에 있음
+                    }
+                    catch (TimeoutException)
+                    {
+                        add_log($"SetMessageBoxMode 타임아웃: {file_path}");
+                    }
+                    catch (Exception ex)
+                    {
+                        add_log("SetMessageBoxMode 오류: " + ex.Message);
+                    }
+                }
                 string file_ext = System.IO.Path.GetExtension(file_path).ToLower();
                 // 같은 종류인지 검사
                 if (file_ext == target_ext)
                 {
                     show_convert_state(nRow, "변환안함(같은형식)");
                 }
-                else if (hwpWorker.Invoke(h => h.Open(file_path, "", "lock:false;forceopen:true;suspendpassword:true"))) //포맷을 지정하지 않아도 자동 인식
+                else
                 {
-                    show_convert_state(nRow, "변환중");
-                    string save_path = "";
-                    if (bUseCurrentPath == true)  save_path = System.IO.Path.GetDirectoryName(file_path);
-                    else                          save_path = strSavePath;
-                    save_path += "\\" + System.IO.Path.GetFileNameWithoutExtension(file_path) + target_ext;
-                    //저장할 파일 이름과 겹치는 파일이 이미 있는지 확인하고 설정에 따라 처리
-                    bool bSkip = false;
-                    bool bChanged = false;
-                    bool bOverwirte = false;
-                    int temp_num = 0; 
-                    while (File.Exists(save_path))
+                    bool opened = false;
+                    try
                     {
-                        temp_num += 1;
-                        if (option_overwrite == 0) // 이름 바꾸기
-                        {
-                            if (bUseCurrentPath == true) save_path = System.IO.Path.GetDirectoryName(file_path);
-                            else save_path = strSavePath;
-                            save_path += "\\" + System.IO.Path.GetFileNameWithoutExtension(file_path) + "(" + temp_num.ToString() + ")" + target_ext;
-                            bChanged = true;
-                        }
-                        else if (option_overwrite == 1) //건너뛰기
-                        {
-                            bSkip = true;
-                            break;
-                        }
-                        else if (option_overwrite == 2)  //덮어쓰기
-                        {
-                            bOverwirte = true;
-                            bSkip = false;
-                            break;
-                        }
-                        else //예상치 못한 값의 경우 건너뛰기로 처리
-                        {
-                            bSkip = true;
-                            break;
-                        }
+                        opened = hwpWorker.Invoke(h => h.Open(file_path, "", "lock:false;forceopen:true;suspendpassword:true;"), HWP_INVOKE_TIMEOUT_MS);
                     }
-                    if (bSkip == true)
+                    catch (TimeoutException)
                     {
-                        show_convert_state(nRow, "변환안함(이름겹침)");
+                        add_log($"원본 파일 열기 타임아웃: {file_path}");
+                        opened = false;
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        bool bSuccess = false;
-                        if (target_type == "PDF" && option_PDF_print == true && m_strPrinter != "")
+                        add_log("원본 파일 열기 오류: " + ex.Message);
+                        opened = false;
+                    }
+                    if (opened)
+                    {
+                        show_convert_state(nRow, "변환중");
+                        string save_path = "";
+                        if (bUseCurrentPath == true)  save_path = System.IO.Path.GetDirectoryName(file_path);
+                        else                          save_path = strSavePath;
+                        save_path += "\\" + System.IO.Path.GetFileNameWithoutExtension(file_path) + target_ext;
+                        //저장할 파일 이름과 겹치는 파일이 이미 있는지 확인하고 설정에 따라 처리
+                        bool bSkip = false;
+                        bool bChanged = false;
+                        bool bOverwirte = false;
+                        int temp_num = 0; 
+                        while (File.Exists(save_path))
                         {
-                            //HWPCONTROLLib.DHwpAction act = (HWPCONTROLLib.DHwpAction)temp_hwp.CreateAction("Print");
-                            //HWPCONTROLLib.DHwpParameterSet pset = (HWPCONTROLLib.DHwpParameterSet)act.CreateSet();
-                            //PDF 파일의 경우 가상 프린터를 사용하는 방식으로 변환 가능
-                            //인쇄 모아쓰기 설정을 변경할 수 있지만 인쇄 팝업이 잠시 떴다 사라짐
-                            //가상 프린터를 쓰지 않는 경우는 기존의 SaveAS 방식으로 변환
-                            bSuccess = hwpWorker.Invoke(h => {
-                                HAction hwp_action = (HAction)h.HAction;
-                                HParameterSet hwp_pset = (HParameterSet)h.HParameterSet;
-                                HPrint hwp_print = (HPrint)hwp_pset.HPrint;
-                                HSet hwp_set = (HSet)hwp_print.HSet;
-                                hwp_action.GetDefault("Print", hwp_set);
-                                hwp_print.PrintMethod = (ushort)m_nPrintMethod;
-                                hwp_print.Collate = 1;
-                                hwp_print.NumCopy = 1;
-                                hwp_print.PrintToFile = 1;
-                                hwp_print.filename = save_path;
-                                hwp_print.PrinterName = m_strPrinter;
-                                hwp_print.Flags = 8192;
-                                hwp_print.Device = 3;
-                                return hwp_action.Execute("Print", hwp_set);
-                            }); //PrintToPDF를 쓰면 폰트에 따라 숫자, 첨자 등이 안나올수 있음
-                             if (bSuccess == true)
-                             {
-                                 show_convert_state(nRow, "파일 쓰는 중");
-                                 //한컴 PDF Printer는 인쇄가 성공했더라도 실제 파일이 저장되었는지 확인도 필요함. 
-                                 //별도 쓰레드가 돌아가면서 성공값이 리턴된 후에도 파일IO가 계속되는 경우가 있음
-                                 //이렇게 하지 않으면 중간에 확인창이 뜬다.
-                                 FileStream stream = null;
-                                 bool bWriteFinished = false;
-                                 DateTime waitStart = DateTime.Now;
-                                 while (bWriteFinished == false && st_bConverting &&
-                                    DateTime.Now - waitStart < TimeSpan.FromSeconds(60))
-                                 {
-                                     try
-                                     {
-                                         stream = new FileStream(save_path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-                                         if (stream != null) bWriteFinished = true;
-                                     }
-                                     catch (IOException)
-                                     {
-                                        bWriteFinished = false; //쓰기가 끝나지 않은 상태면
-                                        Thread.Sleep(500); //0.5초 대기
-                                        //Console.WriteLine($"Waiting...{save_path}"); //디버그용 코드
-                                     }
-                                 }
-                                 if (stream != null) stream.Close();
-                                 if (bWriteFinished)
-                                 {
-                                     show_convert_state(nRow, "쓰기 종료");
-                                 }
-                                 else
-                                 {
-                                     bSuccess = false;
-                                     show_convert_state(nRow, "출력 파일 확인 시간 초과");
-                                 }
-                             }
+                            temp_num += 1;
+                            if (option_overwrite == 0) // 이름 바꾸기
+                            {
+                                if (bUseCurrentPath == true) save_path = System.IO.Path.GetDirectoryName(file_path);
+                                else save_path = strSavePath;
+                                save_path += "\\" + System.IO.Path.GetFileNameWithoutExtension(file_path) + "(" + temp_num.ToString() + ")" + target_ext;
+                                bChanged = true;
+                            }
+                            else if (option_overwrite == 1) //건너뛰기
+                            {
+                                bSkip = true;
+                                break;
+                            }
+                            else if (option_overwrite == 2)  //덮어쓰기
+                            {
+                                bOverwirte = true;
+                                bSkip = false;
+                                break;
+                            }
+                            else //예상치 못한 값의 경우 건너뛰기로 처리
+                            {
+                                bSkip = true;
+                                break;
+                            }
+                        }
+                        if (bSkip == true)
+                        {
+                            show_convert_state(nRow, "변환안함(이름겹침)");
                         }
                         else
                         {
-                            //SaveAs의 경우 PDF 변환시 HWP파일의 모아찍기 설정은 그대로 유지됨
-                            bSuccess = hwpWorker.Invoke(h => h.SaveAs(save_path, target_type, ""));
+                            bool bSuccess = false;
+                            if (target_type == "PDF" && option_PDF_print == true && m_strPrinter != "")
+                            {
+                                //HWPCONTROLLib.DHwpAction act = (HWPCONTROLLib.DHwpAction)temp_hwp.CreateAction("Print");
+                                //HWPCONTROLLib.DHwpParameterSet pset = (HWPCONTROLLib.DHwpParameterSet)act.CreateSet();
+                                //PDF 파일의 경우 가상 프린터를 사용하는 방식으로 변환 가능
+                                //인쇄 모아쓰기 설정을 변경할 수 있지만 인쇄 팝업이 잠시 떴다 사라짐
+                                //가상 프린터를 쓰지 않는 경우는 기존의 SaveAS 방식으로 변환
+                                try
+                                {
+                                    bSuccess = hwpWorker.Invoke(h => {
+                                        HAction hwp_action = (HAction)h.HAction;
+                                        HParameterSet hwp_pset = (HParameterSet)h.HParameterSet;
+                                        HPrint hwp_print = (HPrint)hwp_pset.HPrint;
+                                        HSet hwp_set = (HSet)hwp_print.HSet;
+                                        hwp_action.GetDefault("Print", hwp_set);
+                                        hwp_print.PrintMethod = (ushort)m_nPrintMethod;
+                                        hwp_print.Collate = 1;
+                                        hwp_print.NumCopy = 1;
+                                        hwp_print.PrintToFile = 1;
+                                        hwp_print.filename = save_path;
+                                        hwp_print.PrinterName = m_strPrinter;
+                                        hwp_print.Flags = 8192;
+                                        hwp_print.Device = 3;
+                                        return hwp_action.Execute("Print", hwp_set);
+                                    }, HWP_INVOKE_TIMEOUT_MS); //PrintToPDF를 쓰면 폰트에 따라 숫자, 첨자 등이 안나올수 있음
+                                }
+                                catch (TimeoutException)
+                                {
+                                    add_log($"프린트 실행 타임아웃: {file_path}");
+                                    bSuccess = false;
+                                }
+                                catch (Exception ex)
+                                {
+                                    add_log("프린트 실행 오류: " + ex.Message);
+                                    bSuccess = false;
+                                }
+                                 if (bSuccess == true)
+                                 {
+                                     show_convert_state(nRow, "파일 쓰는 중");
+                                     //한컴 PDF Printer는 인쇄가 성공했더라도 실제 파일이 저장되었는지 확인도 필요함. 
+                                     //별도 쓰레드가 돌아가면서 성공값이 리턴된 후에도 파일IO가 계속되는 경우가 있음
+                                     //이렇게 하지 않으면 중간에 확인창이 뜬다.
+                                     FileStream stream = null;
+                                     bool bWriteFinished = false;
+                                     DateTime waitStart = DateTime.Now;
+                                     while (bWriteFinished == false && st_bConverting &&
+                                    DateTime.Now - waitStart < TimeSpan.FromSeconds(60))
+                                     {
+                                         try
+                                         {
+                                             stream = new FileStream(save_path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                                             if (stream != null) bWriteFinished = true;
+                                         }
+                                         catch (IOException)
+                                         {
+                                            bWriteFinished = false; //쓰기가 끝나지 않은 상태면
+                                            Thread.Sleep(500); //0.5초 대기
+                                            //Console.WriteLine($"Waiting...{save_path}"); //디버그용 코드
+                                         }
+                                     }
+                                     if (stream != null) stream.Close();
+                                     if (bWriteFinished)
+                                     {
+                                         show_convert_state(nRow, "쓰기 종료");
+                                     }
+                                     else
+                                     {
+                                         bSuccess = false;
+                                         show_convert_state(nRow, "출력 파일 확인 시간 초과");
+                                     }
+                                 }
+                            }
+                            else
+                            {
+                                //SaveAs의 경우 PDF 변환시 HWP파일의 모아찍기 설정은 그대로 유지됨
+                                try
+                                {
+                                    bSuccess = hwpWorker.Invoke(h => h.SaveAs(save_path, target_type, ""), HWP_INVOKE_TIMEOUT_MS);
+                                }
+                                catch (TimeoutException)
+                                {
+                                    add_log($"SaveAs 타임아웃: {save_path}");
+                                    bSuccess = false;
+                                }
+                                catch (Exception ex)
+                                {
+                                    add_log("SaveAs 오류: " + ex.Message);
+                                    bSuccess = false;
+                                }
+                            }
+                            if (bSuccess)
+                            {
+                                if (bOverwirte == true) show_convert_state(nRow, "완료(덮어씀)");
+                                else if (bChanged == true) show_convert_state(nRow, "완료(이름바꿈) - " + System.IO.Path.GetFileName(save_path));
+                                else show_convert_state(nRow, "완료");
+                                nConverted++;
+                            }
+                            else show_convert_state(nRow, "변환 시도 실패");
                         }
-                        if (bSuccess)
-                        {
-                            if (bOverwirte == true) show_convert_state(nRow, "완료(덮어씀)");
-                            else if (bChanged == true) show_convert_state(nRow, "완료(이름바꿈) - " + System.IO.Path.GetFileName(save_path));
-                            else show_convert_state(nRow, "완료");
-                            nConverted++;
-                        }
-                        else show_convert_state(nRow, "변환 시도 실패");
+                        hwpWorker.Invoke(h => { h.Clear(1); return (object)null; });
                     }
-                    hwpWorker.Invoke(h => { h.Clear(1); return (object)null; });
+                    else show_convert_state(nRow, "원본파일 열기 실패");
                 }
-                else show_convert_state(nRow, "원본파일 열기 실패");
                 nRow++;
                 if (st_bConverting == false)
                 {
@@ -690,6 +749,11 @@ namespace hwp2pdf
                     catch { }
                     hwp_object = null;
                 }
+            }
+            if (hwpWorker != null)
+            {
+                hwpWorker.Dispose();
+                hwpWorker = null;
             }
             String ini_path = System.Windows.Forms.Application.StartupPath + "\\hwp2pdf.ini";
             WritePrivateProfileString("Main", "SaveToCurrentPath", m_bUseCurrentPath.ToString(), ini_path);
