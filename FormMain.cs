@@ -28,8 +28,34 @@ namespace hwp2pdf
         HwpObject hwp_object = null; //한컴 오토메이션을 위한 기본 인터페이스
         bool filecheckdll_ok = false;
         HwpWorker hwpWorker = null;
-        // timeout for COM calls (ms)
-        const int HWP_INVOKE_TIMEOUT_MS = 120000; // 2 minutes
+        // default timeout caps and per-MB multipliers
+        const int HWP_DEFAULT_MIN_MS = 60000; // 1 minute
+        const int HWP_DEFAULT_PERMB_MS_SAVEAS = 15000; // 15s per MB for SaveAs
+        const int HWP_DEFAULT_PERMB_MS_PRINT = 30000; // 30s per MB for Print
+        const int HWP_MAX_MS_SAVEAS = 20 * 60 * 1000; // 20 minutes
+        const int HWP_MAX_MS_PRINT = 60 * 60 * 1000; // 60 minutes
+        
+        // compute per-file adaptive timeout in milliseconds
+        private int ComputeInvokeTimeoutMs(string filePath, bool isPrint)
+        {
+            try
+            {
+                long size = 0;
+                try { size = new System.IO.FileInfo(filePath).Length; } catch { size = 0; }
+                double mb = Math.Max(0.0, size / 1024.0 / 1024.0);
+                int perMb = isPrint ? HWP_DEFAULT_PERMB_MS_PRINT : HWP_DEFAULT_PERMB_MS_SAVEAS;
+                int ms = 30000 + (int)(mb * perMb);
+                int cap = isPrint ? HWP_MAX_MS_PRINT : HWP_MAX_MS_SAVEAS;
+                if (ms < HWP_DEFAULT_MIN_MS) ms = HWP_DEFAULT_MIN_MS;
+                if (ms > cap) ms = cap;
+                return ms;
+            }
+            catch
+            {
+                return HWP_DEFAULT_MIN_MS;
+            }
+        }
+
         //쓰레드에서 사용할 변수들
         static int st_convert_target_index = 0;
         //static string[] target_type_array = new string[] { "PDF", "HWP", "HWPX", "HWPML2X", "HTML+", "ODT", "OOXML", "MSWORD", "UNICODE", "RTF" };
@@ -404,9 +430,10 @@ namespace hwp2pdf
             {
                 if (filecheckdll_ok == true)
                 {
+                    int setMsgTimeout = ComputeInvokeTimeoutMs(file_path, false);
                     try
                     {
-                        hwpWorker.Invoke(h => { h.SetMessageBoxMode(0x00211411); return (object)null; }, HWP_INVOKE_TIMEOUT_MS); //HwpCtrl API 문서에 있음
+                        hwpWorker.Invoke(h => { h.SetMessageBoxMode(0x00211411); return (object)null; }, setMsgTimeout); //HwpCtrl API 문서에 있음
                     }
                     catch (TimeoutException)
                     {
@@ -428,7 +455,8 @@ namespace hwp2pdf
                     bool opened = false;
                     try
                     {
-                        opened = hwpWorker.Invoke(h => h.Open(file_path, "", "lock:false;forceopen:true;suspendpassword:true;"), HWP_INVOKE_TIMEOUT_MS);
+                        int openTimeout = ComputeInvokeTimeoutMs(file_path, false);
+                        opened = hwpWorker.Invoke(h => h.Open(file_path, "", "lock:false;forceopen:true;suspendpassword:true;"), openTimeout);
                     }
                     catch (TimeoutException)
                     {
@@ -495,22 +523,23 @@ namespace hwp2pdf
                                 //가상 프린터를 쓰지 않는 경우는 기존의 SaveAS 방식으로 변환
                                 try
                                 {
+                                    int printTimeout = ComputeInvokeTimeoutMs(file_path, true);
                                     bSuccess = hwpWorker.Invoke(h => {
-                                        HAction hwp_action = (HAction)h.HAction;
-                                        HParameterSet hwp_pset = (HParameterSet)h.HParameterSet;
-                                        HPrint hwp_print = (HPrint)hwp_pset.HPrint;
-                                        HSet hwp_set = (HSet)hwp_print.HSet;
-                                        hwp_action.GetDefault("Print", hwp_set);
-                                        hwp_print.PrintMethod = (ushort)m_nPrintMethod;
-                                        hwp_print.Collate = 1;
-                                        hwp_print.NumCopy = 1;
-                                        hwp_print.PrintToFile = 1;
-                                        hwp_print.filename = save_path;
-                                        hwp_print.PrinterName = m_strPrinter;
-                                        hwp_print.Flags = 8192;
-                                        hwp_print.Device = 3;
-                                        return hwp_action.Execute("Print", hwp_set);
-                                    }, HWP_INVOKE_TIMEOUT_MS); //PrintToPDF를 쓰면 폰트에 따라 숫자, 첨자 등이 안나올수 있음
+                                         HAction hwp_action = (HAction)h.HAction;
+                                         HParameterSet hwp_pset = (HParameterSet)h.HParameterSet;
+                                         HPrint hwp_print = (HPrint)hwp_pset.HPrint;
+                                         HSet hwp_set = (HSet)hwp_print.HSet;
+                                         hwp_action.GetDefault("Print", hwp_set);
+                                         hwp_print.PrintMethod = (ushort)m_nPrintMethod;
+                                         hwp_print.Collate = 1;
+                                         hwp_print.NumCopy = 1;
+                                         hwp_print.PrintToFile = 1;
+                                         hwp_print.filename = save_path;
+                                         hwp_print.PrinterName = m_strPrinter;
+                                         hwp_print.Flags = 8192;
+                                         hwp_print.Device = 3;
+                                         return hwp_action.Execute("Print", hwp_set);
+                                    }, printTimeout); //PrintToPDF를 쓰면 폰트에 따라 숫자, 첨자 등이 안나올수 있음
                                 }
                                 catch (TimeoutException)
                                 {
@@ -531,8 +560,9 @@ namespace hwp2pdf
                                      FileStream stream = null;
                                      bool bWriteFinished = false;
                                      DateTime waitStart = DateTime.Now;
-                                     while (bWriteFinished == false && st_bConverting &&
-                                    DateTime.Now - waitStart < TimeSpan.FromSeconds(60))
+                                     int fileWriteTimeoutMs = ComputeInvokeTimeoutMs(file_path, true);
+                                      while (bWriteFinished == false && st_bConverting &&
+                                     DateTime.Now - waitStart < TimeSpan.FromMilliseconds(fileWriteTimeoutMs))
                                      {
                                          try
                                          {
@@ -563,7 +593,8 @@ namespace hwp2pdf
                                 //SaveAs의 경우 PDF 변환시 HWP파일의 모아찍기 설정은 그대로 유지됨
                                 try
                                 {
-                                    bSuccess = hwpWorker.Invoke(h => h.SaveAs(save_path, target_type, ""), HWP_INVOKE_TIMEOUT_MS);
+                                    int saveTimeout = ComputeInvokeTimeoutMs(file_path, false);
+                                    bSuccess = hwpWorker.Invoke(h => h.SaveAs(save_path, target_type, ""), saveTimeout);
                                 }
                                 catch (TimeoutException)
                                 {
@@ -585,7 +616,15 @@ namespace hwp2pdf
                             }
                             else show_convert_state(nRow, "변환 시도 실패");
                         }
-                        hwpWorker.Invoke(h => { h.Clear(1); return (object)null; });
+                        try
+                        {
+                            int clearTimeout = ComputeInvokeTimeoutMs(file_path, false);
+                            hwpWorker.Invoke(h => { h.Clear(1); return (object)null; }, clearTimeout);
+                        }
+                        catch (Exception ex)
+                        {
+                            add_log("Clear 오류: " + ex.Message);
+                        }
                     }
                     else show_convert_state(nRow, "원본파일 열기 실패");
                 }
