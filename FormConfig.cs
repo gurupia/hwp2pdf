@@ -64,7 +64,9 @@ namespace hwp2pdf
             }
            
             m_option_PDF_print = radio_PDF_Print.Checked;
-            m_strPrinter = comboBox_PDF_Printer.SelectedItem.ToString();
+            m_strPrinter = comboBox_PDF_Printer.SelectedItem == null
+                ? ""
+                : comboBox_PDF_Printer.SelectedItem.ToString();
             int nTemp = comboBox_PDF_PrintMethod.SelectedIndex;
             if (nTemp == 0)
             {

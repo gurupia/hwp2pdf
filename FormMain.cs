@@ -29,7 +29,7 @@ namespace hwp2pdf
         static int st_convert_target_index = 0;
         //static string[] target_type_array = new string[] { "PDF", "HWP", "HWPX", "HWPML2X", "HTML+", "ODT", "OOXML", "MSWORD", "UNICODE", "RTF" };
         //static string[] target_ext_array = new string[] { ".pdf", ".hwp", ".hwpx", ".hml", ".html", ".odt", ".docx", ".doc", ".txt", ".rtf" };
-        static string[] target_type_array = new string[] { "PDF", "HWP", "HWPX", "HWPML2X", "HTML+", "ODT", "OOXML", "UNICODE", "RTF" };
+        static string[] target_type_array = new string[] { "PDF", "HWP", "HWPX", "HWPML2X", "HTML+", "ODT", "OOXML", "MSWORD", "UNICODE", "RTF" };
         static string[] target_ext_array = new string[] { ".pdf", ".hwp", ".hwpx", ".hml", ".html", ".odt", ".docx", ".doc", ".txt", ".rtf" };
         //public static string[] source_type_array = new string[] { "HWP", "HWPX", "HWPML2X", "HTML+", "ODT", "OOXML", "MSWORD", "UNICODE", "RTF" };
         public static string[] source_ext_array = new string[] { ".hwp", ".hwpx", ".hml", ".html", ".odt", ".docx", ".doc", ".txt", ".rtf" };
@@ -63,7 +63,8 @@ namespace hwp2pdf
         private void InitializeApplication()
         {
             //한컴오피스 설치여부 확인
-            RegistryKey reg = Registry.CurrentUser.OpenSubKey("SOFTWARE", true).OpenSubKey("HNC", true);
+            RegistryKey softwareKey = Registry.CurrentUser.OpenSubKey("SOFTWARE", true);
+            RegistryKey reg = softwareKey == null ? null : softwareKey.OpenSubKey("HNC", true);
             if (reg == null)
             {
                 MessageBox.Show("한컴오피스 한글2010 이상 버전이 설치되어 있지 않습니다.", "hwp2pdf");
@@ -90,15 +91,24 @@ namespace hwp2pdf
             GetPrivateProfileString("Main", "SavePath", "", strTemp, strTemp.Capacity, ini_path);
             m_strSavePath = strTemp.ToString();
             GetPrivateProfileString("Main", "SaveToCurrentPath", "", strTemp, strTemp.Capacity, ini_path);
-            if (strTemp.Length > 0) m_bUseCurrentPath = bool.Parse(strTemp.ToString());
+            bool boolValue;
+            if (strTemp.Length > 0 && bool.TryParse(strTemp.ToString(), out boolValue))
+                m_bUseCurrentPath = boolValue;
             GetPrivateProfileString("Main", "OptionOverwrite", "", strTemp, strTemp.Capacity, ini_path);
-            if (strTemp.Length > 0) option_overwrite = int.Parse(strTemp.ToString());
+            int intValue;
+            if (strTemp.Length > 0 && int.TryParse(strTemp.ToString(), out intValue))
+                option_overwrite = intValue;
             GetPrivateProfileString("Main", "OptionExtFlags", "", strTemp, strTemp.Capacity, ini_path);  // 과거 버전은 OptionExtFlag 
-            if (strTemp.Length > 0) option_source_ext_flag = int.Parse(strTemp.ToString());
+            if (strTemp.Length > 0 && int.TryParse(strTemp.ToString(), out intValue))
+                option_source_ext_flag = intValue;
             GetPrivateProfileString("Main", "OptionPDFPrint", "", strTemp, strTemp.Capacity, ini_path);
-            if (strTemp.Length > 0) option_PDF_print = bool.Parse(strTemp.ToString());
+            if (strTemp.Length > 0 && bool.TryParse(strTemp.ToString(), out boolValue))
+                option_PDF_print = boolValue;
             GetPrivateProfileString("Main", "CurrentTargetType", "", strTemp, strTemp.Capacity, ini_path);
-            if (strTemp.Length > 0) st_convert_target_index = int.Parse(strTemp.ToString());
+            if (strTemp.Length > 0 && int.TryParse(strTemp.ToString(), out intValue))
+                st_convert_target_index = intValue;
+            if (st_convert_target_index < 0 || st_convert_target_index >= target_type_array.Length)
+                st_convert_target_index = 0;
             GetPrivateProfileString("Main", "PrinterName", "", strTemp, strTemp.Capacity, ini_path);
             m_strPrinter = strTemp.ToString();
             GetPrivateProfileString("Main", "PrintMethod", "", strTemp, strTemp.Capacity, ini_path);
@@ -221,14 +231,16 @@ namespace hwp2pdf
             if (bPrinterInstalled == false)
             {
                 MessageBox.Show("한글 PDF 또는 Micosoft Print to PDF가 설치되어 있지 않습니다.", "hwp2pdf");
-            } else {
-            if (m_bUseCurrentPath == true) m_strSavePath = System.IO.Directory.GetCurrentDirectory();
-            Invoke(new MethodInvoker(() =>
+            }
+            else
             {
-                update_path();
-                if (combo_target_format.Items.Count > st_convert_target_index)
-                    combo_target_format.SelectedIndex = st_convert_target_index;
-            }));
+                if (m_bUseCurrentPath == true) m_strSavePath = System.IO.Directory.GetCurrentDirectory();
+                Invoke(new MethodInvoker(() =>
+                {
+                    update_path();
+                    if (combo_target_format.Items.Count > st_convert_target_index)
+                        combo_target_format.SelectedIndex = st_convert_target_index;
+                }));
             }
             }
         private delegate void add_log_delegate(string text);
@@ -415,7 +427,9 @@ namespace hwp2pdf
                                 //이렇게 하지 않으면 중간에 확인창이 뜬다.
                                 FileStream stream = null;
                                 bool bWriteFinished = false;
-                                while (bWriteFinished == false)
+                                DateTime waitStart = DateTime.Now;
+                                while (bWriteFinished == false && st_bConverting &&
+                                    DateTime.Now - waitStart < TimeSpan.FromSeconds(60))
                                 {
                                     try
                                     {
@@ -430,7 +444,15 @@ namespace hwp2pdf
                                     }
                                 }
                                 if (stream != null) stream.Close();
-                                show_convert_state(nRow, "쓰기 종료");
+                                if (bWriteFinished)
+                                {
+                                    show_convert_state(nRow, "쓰기 종료");
+                                }
+                                else
+                                {
+                                    bSuccess = false;
+                                    show_convert_state(nRow, "출력 파일 확인 시간 초과");
+                                }
                             }
                         }
                         else
