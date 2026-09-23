@@ -21,7 +21,9 @@ namespace hwp2pdf
         string m_strSavePath = "";
         static bool st_bConverting = false;
         int option_overwrite = 0; // 0:새이름으로 저장, 1:변환스킵, 2:덮어쓰기
-        int option_source_ext_flag = (1 | 2 | 4); //Source 확장자에 대한 비트플래그 타입
+        // Source 확장자 저장: CSV 형식으로 INI에 저장됨. 런타임에서는 HashSet으로 관리
+        string option_source_ext_csv = "";
+        HashSet<string> option_source_ext_set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         bool option_PDF_print = false; //true 면 가상인쇄 방식 사용
         HwpObject hwp_object = null; //한컴 오토메이션을 위한 기본 인터페이스
         bool filecheckdll_ok = false;
@@ -102,9 +104,31 @@ namespace hwp2pdf
             int intValue;
             if (strTemp.Length > 0 && int.TryParse(strTemp.ToString(), out intValue))
                 option_overwrite = intValue;
-            GetPrivateProfileString("Main", "OptionExtFlags", "", strTemp, strTemp.Capacity, ini_path);  // 과거 버전은 OptionExtFlag 
-            if (strTemp.Length > 0 && int.TryParse(strTemp.ToString(), out intValue))
-                option_source_ext_flag = intValue;
+            // SourceExt (CSV) 우선 읽기; 없으면 구버전 OptionExtFlags를 변환
+            StringBuilder sbExt = new StringBuilder(1024, 1024);
+            GetPrivateProfileString("Main", "SourceExt", "", sbExt, sbExt.Capacity, ini_path);
+            if (sbExt.Length > 0)
+            {
+                option_source_ext_csv = sbExt.ToString();
+                option_source_ext_set.Clear();
+                foreach (var ex in option_source_ext_csv.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+                    option_source_ext_set.Add(ex.Trim().ToLower());
+            }
+            else
+            {
+                GetPrivateProfileString("Main", "OptionExtFlags", "", strTemp, strTemp.Capacity, ini_path);  // 과거 버전은 OptionExtFlag 
+                if (strTemp.Length > 0 && int.TryParse(strTemp.ToString(), out intValue))
+                {
+                    int flag_compare = 1;
+                    for (int i = 0; i < source_ext_array.Length && i < 31; i++)
+                    {
+                        if ((intValue & flag_compare) != 0)
+                            option_source_ext_set.Add(source_ext_array[i].ToLower());
+                        flag_compare <<= 1;
+                    }
+                    option_source_ext_csv = string.Join(",", option_source_ext_set);
+                }
+            }
             GetPrivateProfileString("Main", "OptionPDFPrint", "", strTemp, strTemp.Capacity, ini_path);
             if (strTemp.Length > 0 && bool.TryParse(strTemp.ToString(), out boolValue))
                 option_PDF_print = boolValue;
@@ -513,7 +537,7 @@ namespace hwp2pdf
         {
             string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
             Array.Sort(files, new FileNameComparer());
-            int nAdded = add_files(files, option_source_ext_flag);
+            int nAdded = add_files(files);
             add_log(String.Format("{0}개를 목록에 추가하였습니다.", nAdded));
         }
         private string GetFileSizeString(double byteCount)
@@ -529,7 +553,7 @@ namespace hwp2pdf
                 size = byteCount.ToString() + " Bytes";
             return size;
         }
-        private int add_files(string[] files, int extflag)
+        private int add_files(string[] files)
         {
             int nAdded = 0;
             foreach (string file in files)
@@ -539,8 +563,8 @@ namespace hwp2pdf
                 {
                     string[] dirs_only = Directory.GetDirectories(file);
                     string[] files_only = Directory.GetFiles(file);
-                    nAdded += add_files(dirs_only, option_source_ext_flag); 
-                    nAdded += add_files(files_only, option_source_ext_flag);
+                    nAdded += add_files(dirs_only);
+                    nAdded += add_files(files_only);
                 }
                 else
                 {
@@ -548,16 +572,18 @@ namespace hwp2pdf
                     string file_size = GetFileSizeString(fInfo.Length);
                     string file_ext = fInfo.Extension.ToLower();
 
-                    int flag_compare = 1;
                     bool is_correct_ext = false;
-                    foreach (string ext_item in source_ext_array )
+                    foreach (string ext_item in source_ext_array)
                     {
-                        if ((file_ext.Equals(ext_item.ToLower())) && ((extflag & flag_compare) != 0))
+                        if (file_ext.Equals(ext_item.ToLower()))
                         {
-                            is_correct_ext = true;
-                            break;
+                            // if no selection set, allow all; otherwise check set
+                            if (option_source_ext_set.Count == 0 || option_source_ext_set.Contains(ext_item.ToLower()))
+                            {
+                                is_correct_ext = true;
+                                break;
+                            }
                         }
-                        flag_compare = flag_compare * 2;
                     }
                     if (is_correct_ext)
                     {
@@ -619,7 +645,17 @@ namespace hwp2pdf
             if (m_bUseCurrentPath == true) m_strSavePath = "";
             WritePrivateProfileString("Main", "SavePath", m_strSavePath, ini_path);
             WritePrivateProfileString("Main", "OptionOverwrite", option_overwrite.ToString(), ini_path);
-            WritePrivateProfileString("Main", "OptionExtFlags", option_source_ext_flag.ToString(), ini_path); // 과거 버전은 OptionExtFlag 
+            // 저장: 새 포맷(SourceExt)으로 저장하고, 하위호환을 위해 OptionExtFlags도 함께 기록
+            WritePrivateProfileString("Main", "SourceExt", option_source_ext_csv ?? "", ini_path);
+            int legacyFlag = 0;
+            int flag_compare = 1;
+            for (int i = 0; i < source_ext_array.Length && i < 31; i++)
+            {
+                if (option_source_ext_set.Contains(source_ext_array[i].ToLower()))
+                    legacyFlag |= flag_compare;
+                flag_compare <<= 1;
+            }
+            WritePrivateProfileString("Main", "OptionExtFlags", legacyFlag.ToString(), ini_path); // 과거 버전은 OptionExtFlag 
             WritePrivateProfileString("Main", "OptionPDFPrint", option_PDF_print.ToString(), ini_path);
             WritePrivateProfileString("Main", "CurrentTargetType", st_convert_target_index.ToString(), ini_path);
             WritePrivateProfileString("Main", "PrinterName", m_strPrinter, ini_path);
@@ -671,7 +707,7 @@ namespace hwp2pdf
             {
                 string[] files = dlg.FileNames;
                 Array.Sort(files, new FileNameComparer());
-                int nAdded = add_files(files, 0xFFFF);
+                int nAdded = add_files(files);
                 add_log(String.Format("{0}개를 목록에 추가하였습니다.", nAdded));
             }
         }
@@ -698,11 +734,15 @@ namespace hwp2pdf
         private void btn_config_Click(object sender, EventArgs e)
         {
             FormConfig dlg = new FormConfig();
-            dlg.setOption(option_overwrite, option_source_ext_flag, option_PDF_print, m_strPrinter, m_nPrintMethod);
+            dlg.setOption(option_overwrite, option_source_ext_csv, option_PDF_print, m_strPrinter, m_nPrintMethod);
             if (dlg.ShowDialog() == DialogResult.OK)
             {
                 option_overwrite = dlg.get_option_overwrite();
-                option_source_ext_flag = dlg.get_option_extflag();
+                option_source_ext_csv = dlg.get_option_extcsv();
+                // rebuild set
+                option_source_ext_set.Clear();
+                foreach (var ex in option_source_ext_csv.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+                    option_source_ext_set.Add(ex.Trim().ToLower());
                 option_PDF_print = dlg.get_option_PDF_print();
                 m_strPrinter = dlg.get_option_printer();
                 m_nPrintMethod = dlg.get_option_printmethod();

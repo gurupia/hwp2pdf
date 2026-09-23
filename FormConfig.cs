@@ -12,7 +12,8 @@ namespace hwp2pdf
     public partial class FormConfig : Form
     {
         int m_option_overwite = 0;
-        int m_option_source_ext_flag = 0; //비트플래그 타입 - 32개까지 밖에 안되는 문제가 있음
+        string m_option_source_ext_csv = ""; // CSV로 확장자를 저장
+        HashSet<string> m_option_source_ext_set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         bool m_option_PDF_print = false;
         string m_strPrinter = "";
         int m_nPrintMethod = 1; 
@@ -21,10 +22,13 @@ namespace hwp2pdf
         {
             InitializeComponent();
         }
-        public void setOption(int option_overwrite, int option_extflag, bool option_PDF_print, string strPrinter, int nPrintMethod)
+        public void setOption(int option_overwrite, string option_ext_csv, bool option_PDF_print, string strPrinter, int nPrintMethod)
         {
             m_option_overwite = option_overwrite;
-            m_option_source_ext_flag = option_extflag;
+            m_option_source_ext_csv = option_ext_csv ?? "";
+            m_option_source_ext_set.Clear();
+            foreach (var ex in m_option_source_ext_csv.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+                m_option_source_ext_set.Add(ex.Trim().ToLower());
             m_option_PDF_print = option_PDF_print;
             m_strPrinter = strPrinter;
             m_nPrintMethod = nPrintMethod;
@@ -33,9 +37,9 @@ namespace hwp2pdf
         {
             return m_option_overwite;
         }
-        public int get_option_extflag()
+        public string get_option_extcsv()
         {
-            return m_option_source_ext_flag;
+            return m_option_source_ext_csv;
         }
         public bool get_option_PDF_print()
         {
@@ -55,13 +59,15 @@ namespace hwp2pdf
             else if (radioButton_skip.Checked == true) m_option_overwite = 1;
             else if (radioButton_overwrite.Checked == true) m_option_overwite = 2;
 
-            m_option_source_ext_flag = 0;
-            int flag = 1;
+            // build CSV from checked items
+            List<string> sel = new List<string>();
             foreach (ListViewItem ext_item in list_ext_option.Items)
             {
-                if (ext_item.Checked == true) m_option_source_ext_flag = m_option_source_ext_flag | flag;
-                flag = flag * 2;
+                if (ext_item.Checked == true) sel.Add(ext_item.Text.ToLower());
             }
+            m_option_source_ext_csv = string.Join(",", sel);
+            m_option_source_ext_set.Clear();
+            foreach (var ex in sel) m_option_source_ext_set.Add(ex);
            
             m_option_PDF_print = radio_PDF_Print.Checked;
             m_strPrinter = comboBox_PDF_Printer.SelectedItem == null
@@ -91,12 +97,14 @@ namespace hwp2pdf
             if (m_option_overwite == 0) radioButton_newname.Checked = true;
             else if (m_option_overwite == 1) radioButton_skip.Checked = true;
             else if (m_option_overwite == 2) radioButton_overwrite.Checked = true;
-            int flag = 1;
             foreach (string temp_ext in FormMain.source_ext_array)
             {
                 ListViewItem new_item = list_ext_option.Items.Add(temp_ext);
-                new_item.Checked = ((m_option_source_ext_flag & flag) != 0) ? true : false;
-                flag = flag * 2;
+                // if no selection saved, default to checked
+                if (m_option_source_ext_set.Count == 0)
+                    new_item.Checked = true;
+                else
+                    new_item.Checked = m_option_source_ext_set.Contains(temp_ext.ToLower());
             }
 
             if (m_option_PDF_print == true) radio_PDF_Print.Checked = true;
