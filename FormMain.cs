@@ -32,7 +32,11 @@ namespace hwp2pdf
         static string[] target_type_array = new string[] { "PDF", "HWP", "HWPX", "HWPML2X", "HTML+", "ODT", "OOXML", "MSWORD", "UNICODE", "RTF" };
         static string[] target_ext_array = new string[] { ".pdf", ".hwp", ".hwpx", ".hml", ".html", ".odt", ".docx", ".doc", ".txt", ".rtf" };
         //public static string[] source_type_array = new string[] { "HWP", "HWPX", "HWPML2X", "HTML+", "ODT", "OOXML", "MSWORD", "UNICODE", "RTF" };
-        public static string[] source_ext_array = new string[] { ".hwp", ".hwpx", ".hml", ".html", ".odt", ".docx", ".doc", ".txt", ".rtf" };
+        public static string[] source_ext_array = new string[] {
+            ".hwp", ".hwpx", ".hml", ".html", ".htm", ".mht",
+            ".odt", ".docx", ".docm", ".doc", ".dot", ".dotx",
+            ".txt", ".rtf", ".xml"
+        };
         public FormMain()
         {
             InitializeComponent();

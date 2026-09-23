@@ -42,8 +42,8 @@
 지원 입력 형식:
 
 - `.hwp`, `.hwpx`, `.hml`
-- `.html`, `.odt`
-- `.docx`, `.doc`, `.txt`, `.rtf`
+- `.html`, `.htm`, `.mht`, `.odt`
+- `.docx`, `.docm`, `.doc`, `.dot`, `.dotx`, `.txt`, `.rtf`, `.xml`
 
 지원 출력 형식:
 
