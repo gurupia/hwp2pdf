@@ -639,7 +639,28 @@ namespace hwp2pdf
         }
         private void FormMain_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (hwp_object != null) hwp_object.Quit();
+            // Safely quit and release COM object wrappers to avoid RCW detached errors
+            if (hwp_object != null)
+            {
+                try
+                {
+                    // call Quit if underlying COM object is still valid
+                    if (System.Runtime.InteropServices.Marshal.IsComObject(hwp_object))
+                    {
+                        try { hwp_object.Quit(); } catch { /* ignore errors during quit */ }
+                    }
+                }
+                finally
+                {
+                    try
+                    {
+                        // release RCW
+                        while (System.Runtime.InteropServices.Marshal.ReleaseComObject(hwp_object) > 0) { }
+                    }
+                    catch { }
+                    hwp_object = null;
+                }
+            }
             String ini_path = System.Windows.Forms.Application.StartupPath + "\\hwp2pdf.ini";
             WritePrivateProfileString("Main", "SaveToCurrentPath", m_bUseCurrentPath.ToString(), ini_path);
             if (m_bUseCurrentPath == true) m_strSavePath = "";
