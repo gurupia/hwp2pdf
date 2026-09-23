@@ -224,10 +224,9 @@ namespace hwp2pdf
             this.list_ext_option.Size = new System.Drawing.Size(469, 120);
             this.list_ext_option.TabIndex = 6;
             this.list_ext_option.UseCompatibleStateImageBehavior = false;
-            // Use Tile view to show multiple columns of checkable extensions more compactly
-            this.list_ext_option.View = System.Windows.Forms.View.Tile;
-            this.list_ext_option.TileSize = new System.Drawing.Size(140, 30);
-            this.list_ext_option.MultiSelect = false;
+            // Use SmallIcon view to allow CheckBoxes while showing items in multiple columns
+            this.list_ext_option.View = System.Windows.Forms.View.SmallIcon;
+            this.list_ext_option.MultiSelect = true;
             this.list_ext_option.Scrollable = true;
             // 
             // textBoxNewExt
