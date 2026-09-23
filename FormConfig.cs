@@ -151,5 +151,37 @@ namespace hwp2pdf
         {
             UpdatePDFOption(true);
         }
+
+        private void btnAddExt_Click(object sender, EventArgs e)
+        {
+            string input = textBoxNewExt.Text.Trim();
+            if (string.IsNullOrEmpty(input)) return;
+            // normalize
+            if (!input.StartsWith(".")) input = "." + input;
+            input = input.ToLower();
+            // check duplicate
+            foreach (ListViewItem it in list_ext_option.Items)
+            {
+                if (it.Text.Equals(input, StringComparison.OrdinalIgnoreCase))
+                {
+                    it.Checked = true;
+                    textBoxNewExt.Clear();
+                    return;
+                }
+            }
+            ListViewItem new_item = list_ext_option.Items.Add(input);
+            new_item.Checked = true;
+            textBoxNewExt.Clear();
+        }
+
+        private void btnRemoveExt_Click(object sender, EventArgs e)
+        {
+            // remove selected
+            var items = list_ext_option.SelectedItems;
+            if (items == null || items.Count == 0) return;
+            List<ListViewItem> toRemove = new List<ListViewItem>();
+            foreach (ListViewItem it in items) toRemove.Add(it);
+            foreach (var it in toRemove) list_ext_option.Items.Remove(it);
+        }
     }
 }

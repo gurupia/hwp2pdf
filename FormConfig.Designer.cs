@@ -36,6 +36,9 @@ namespace hwp2pdf
             this.radioButton_newname = new System.Windows.Forms.RadioButton();
             this.btnCancel = new System.Windows.Forms.Button();
             this.btnOk = new System.Windows.Forms.Button();
+            this.textBoxNewExt = new System.Windows.Forms.TextBox();
+            this.btnAddExt = new System.Windows.Forms.Button();
+            this.btnRemoveExt = new System.Windows.Forms.Button();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.label_PDF_PrintMethod = new System.Windows.Forms.Label();
             this.comboBox_PDF_PrintMethod = new System.Windows.Forms.ComboBox();
@@ -223,6 +226,36 @@ namespace hwp2pdf
             this.list_ext_option.UseCompatibleStateImageBehavior = false;
             this.list_ext_option.View = System.Windows.Forms.View.SmallIcon;
             // 
+            // textBoxNewExt
+            // 
+            this.textBoxNewExt.Font = new System.Drawing.Font("맑은 고딕", 12F);
+            this.textBoxNewExt.Location = new System.Drawing.Point(13, 296);
+            this.textBoxNewExt.Name = "textBoxNewExt";
+            this.textBoxNewExt.Size = new System.Drawing.Size(300, 29);
+            this.textBoxNewExt.TabIndex = 8;
+            // 
+            // btnAddExt
+            // 
+            this.btnAddExt.Font = new System.Drawing.Font("맑은 고딕", 12F);
+            this.btnAddExt.Location = new System.Drawing.Point(320, 294);
+            this.btnAddExt.Name = "btnAddExt";
+            this.btnAddExt.Size = new System.Drawing.Size(75, 32);
+            this.btnAddExt.TabIndex = 9;
+            this.btnAddExt.Text = "추가";
+            this.btnAddExt.UseVisualStyleBackColor = true;
+            this.btnAddExt.Click += new System.EventHandler(this.btnAddExt_Click);
+            // 
+            // btnRemoveExt
+            // 
+            this.btnRemoveExt.Font = new System.Drawing.Font("맑은 고딕", 12F);
+            this.btnRemoveExt.Location = new System.Drawing.Point(401, 294);
+            this.btnRemoveExt.Name = "btnRemoveExt";
+            this.btnRemoveExt.Size = new System.Drawing.Size(81, 32);
+            this.btnRemoveExt.TabIndex = 10;
+            this.btnRemoveExt.Text = "삭제";
+            this.btnRemoveExt.UseVisualStyleBackColor = true;
+            this.btnRemoveExt.Click += new System.EventHandler(this.btnRemoveExt_Click);
+            // 
             // label1
             // 
             this.label1.AutoSize = true;
@@ -241,6 +274,9 @@ namespace hwp2pdf
             this.ClientSize = new System.Drawing.Size(498, 552);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.list_ext_option);
+            this.Controls.Add(this.btnRemoveExt);
+            this.Controls.Add(this.btnAddExt);
+            this.Controls.Add(this.textBoxNewExt);
             this.Controls.Add(this.groupBox2);
             this.Controls.Add(this.btnCancel);
             this.Controls.Add(this.btnOk);
@@ -281,5 +317,8 @@ namespace hwp2pdf
         private System.Windows.Forms.RadioButton radio_PDF_SaveAs;
         private System.Windows.Forms.ListView list_ext_option;
         private System.Windows.Forms.Label label1;
+        private System.Windows.Forms.TextBox textBoxNewExt;
+        private System.Windows.Forms.Button btnAddExt;
+        private System.Windows.Forms.Button btnRemoveExt;
     }
 }
