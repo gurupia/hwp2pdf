@@ -30,7 +30,7 @@ namespace hwp2pdf
         //static string[] target_type_array = new string[] { "PDF", "HWP", "HWPX", "HWPML2X", "HTML+", "ODT", "OOXML", "MSWORD", "UNICODE", "RTF" };
         //static string[] target_ext_array = new string[] { ".pdf", ".hwp", ".hwpx", ".hml", ".html", ".odt", ".docx", ".doc", ".txt", ".rtf" };
         static string[] target_type_array = new string[] { "PDF", "HWP", "HWPX", "HWPML2X", "HTML+", "ODT", "OOXML", "UNICODE", "RTF" };
-        static string[] target_ext_array = new string[] { ".pdf", ".hwp", ".hwpx", ".hml", ".html", ".odt", ".docx", ".txt", ".rtf" };
+        static string[] target_ext_array = new string[] { ".pdf", ".hwp", ".hwpx", ".hml", ".html", ".odt", ".docx", ".doc", ".txt", ".rtf" };
         //public static string[] source_type_array = new string[] { "HWP", "HWPX", "HWPML2X", "HTML+", "ODT", "OOXML", "MSWORD", "UNICODE", "RTF" };
         public static string[] source_ext_array = new string[] { ".hwp", ".hwpx", ".hml", ".html", ".odt", ".docx", ".doc", ".txt", ".rtf" };
         public FormMain()
@@ -220,8 +220,8 @@ namespace hwp2pdf
             }
             if (bPrinterInstalled == false)
             {
-                MessageBox.Show("한컴 PDF 또는 Micosoft Print to PDF가 설치되어 있지 않습니다.", "hwp2pdf");
-            }
+                MessageBox.Show("한글 PDF 또는 Micosoft Print to PDF가 설치되어 있지 않습니다.", "hwp2pdf");
+            } else {
             if (m_bUseCurrentPath == true) m_strSavePath = System.IO.Directory.GetCurrentDirectory();
             Invoke(new MethodInvoker(() =>
             {
@@ -229,7 +229,8 @@ namespace hwp2pdf
                 if (combo_target_format.Items.Count > st_convert_target_index)
                     combo_target_format.SelectedIndex = st_convert_target_index;
             }));
-        }
+            }
+            }
         private delegate void add_log_delegate(string text);
         private delegate void show_convert_state_delegate(int nRow, string text);
         private delegate void enable_controls_delegate(bool bEnable);
